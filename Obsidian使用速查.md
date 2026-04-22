@@ -1,6 +1,26 @@
+---
+aliases:
+  - 黑曜石
+  - obsidian
+cssclasses:
+tags:
+  - linux
+  - 嵌入式
+date: 2026-04-22
+updated: 2026-04-23
+status: 进行中 | 已完成 | 待复盘 | 废弃
+priority: 高 | 中 | 低
+plateform: Linux | STM32 | ESP32
+language: "[C,C++,Python,Shell]"
+device: HW1 | HW14R | HW6U
+---
+---
+
 先给你一套能立刻上手、从基础到高效的 Obsidian 技巧，按「基础→核心→插件→工作流→优化」组织，偏实战、少废话。
 
 ---
+
+
 
 ## 一、基础设置与文件管理（新手必做）
 ### 1. 库（Vault）选择
