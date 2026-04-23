@@ -13,12 +13,26 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "项目结构优化建议.md",
+                "file": "4.长青文档/海能操作流程模板及资源.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "项目结构优化建议"
+              "title": "海能操作流程模板及资源"
+            }
+          },
+          {
+            "id": "106585a5cca1985e",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "海能机器人/海尔水洗机泰国.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "海尔水洗机泰国"
             }
           }
         ]
@@ -53,7 +67,7 @@
             "state": {
               "type": "search",
               "state": {
-                "query": "",
+                "query": "[\"language\"]",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -94,7 +108,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "项目结构优化建议.md",
+                "file": "海能机器人/海尔水洗机泰国.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +118,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "项目结构优化建议 的反向链接列表"
+              "title": "海尔水洗机泰国 的反向链接列表"
             }
           },
           {
@@ -156,13 +170,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "项目结构优化建议.md",
+                "file": "4.长青文档/海能操作流程模板及资源.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "项目结构优化建议 的大纲"
+              "title": "海能操作流程模板及资源 的大纲"
             }
           }
         ],
@@ -187,35 +201,35 @@
   },
   "active": "70c7652b9500ebb0",
   "lastOpenFiles": [
+    "海能机器人/海尔水洗机泰国.md",
+    "2.技术项目/海尔IOT.md",
+    "4.长青文档/海能操作流程模板及资源.md",
+    "海能机器人/海尔项目问题汇总.md",
+    "Assets/Pasted image 20260423090446.png",
+    "海能机器人/海尔点激光日本.md",
+    "海能机器人/海尔点激光泰国.md",
+    "海能机器人/海尔点激光印度.md",
     "Obsidian使用速查.md",
+    "5.技术探索/WSL2的使用方法.md",
+    "1.待办事项/4.3 清明节.md",
+    "通用模板/技术探索_模板1.md",
+    "通用模板/测试模板1.md",
+    "海能机器人/HW1.md",
+    "海能机器人/占空比.md",
+    "未命名.md",
     "项目结构优化建议.md",
     "项目结构优化建议.md.tmp.448.1776840142650",
     "2026-04-23.md",
-    "4.长青文档/海能操作流程模板及资源.md",
-    "通用模板/技术探索_模板1.md",
-    "未命名.md",
     "Assets",
-    "5.技术探索/WSL2的使用方法.md",
     "3.生活拓展/骑行健身.md",
     "3.生活拓展/科特学院.md",
-    "1.待办事项/4.3 清明节.md",
-    "2.技术项目/海尔IOT.md",
     "2.技术项目/邮件处理skill.md",
     "2.技术项目/Linux打造家用摄像头.md",
     "3.生活拓展/钢琴乐理.md",
-    "海能机器人/HW1.md",
     "3.生活拓展",
     "生活指南.md",
     "2.技术项目/芯源集尘桶项目_量产版本.md",
     "2.技术项目/芯源集尘桶项目_重构版本.md",
-    "5.技术探索/HaierIOT_4.21.md",
-    "5.技术探索/HaierIOT_4.20.md",
-    "5.技术探索/HaierIOT.md",
-    "2.技术项目/HW14德为捷克水洗基站项目.md",
-    "5.技术探索/QwenPaw的使用.md",
-    "5.技术探索/Foxmail腾讯企业邮箱.md",
-    "5.技术探索/Agent Skills.md",
-    "3.技术探索/未命名.md",
     "4.长青文档",
     "通用模板",
     "5.技术探索",
