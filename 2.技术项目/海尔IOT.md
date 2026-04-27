@@ -23,6 +23,44 @@
 ✅ 易于维护：新增/修改命令只需要操作映射表
 
 
+- `std::bind(...)` 本身不执行被绑定的函数。它做的事是：生成一个“可调用对象”（binder 对象），真正执行发生在你“调用 bind 返回对象”的那一刻，也就是对它使用 `()` 时
+
+```cpp
+auto f = std::bind(&DevStatus::StatusForceReport, this, std::placeholders::_1);
+StdStringMsg msg;
+f(msg);  // 这一行才会调用 this->StatusForceReport(msg)
+```
+
+哪些类型可以作为 `std::function<R(Args...)>` 的值？
+
+只要满足一句话：能用 `()` 调用，并且调用形式能匹配 `R(Args...)`（返回值可转换成 `R`，参数可用 `Args...` 传进去），就可以。
+
+常见可装入 `std::function` 的类型：
+
+- 普通函数指针
+    
+    - `void foo(int);`
+    - `std::function<void(int)> f = foo;`
+- 无捕获 lambda / 有捕获 lambda
+    
+    - `[](int x){...}` 或 `[this](const Msg& m){...}`
+    - 捕获 lambda 不能隐式转函数指针，但可以进 `std::function`
+- 函数对象（仿函数）
+    
+    - 自定义 `struct F { void operator()(int) const; };`
+- `std::bind` 的返回对象
+    
+    - 你用的就是这种
+- 成员函数指针（注意：不能“直接”放进去就能调用，通常要配合绑定对象）
+    
+    - `&DevStatus::StatusForceReport` 单独拿出来不够，还缺对象实例
+    - 典型做法：用 `bind` 或 lambda 把 `this` 绑上，再放进 `std::function`
+- `std::mem_fn` 返回的可调用对象（同样可塞进 `std::function`）
+    
+    - `std::mem_fn(&DevStatus::StatusForceReport)` 生成一个可调用包装，但调用时仍需要对象参数
+
+
+
 ## 执行函数
 
 ```cpp
@@ -40,6 +78,8 @@ int HaierAdapter::HaierWriteHandle(const std::string &cmd, const std::string &cm
 ```
 
 - 传入命令名称与参数，验证之后进行执行
+
+- cmd_obj_api_table_.find(cmd) 如果在键值对列表中找到了“对应的键”，就会反馈对应的键值的地址，通过这个地址，使用first和second就可以分别对应访问键和值
 
 
 ## 设备写操作的回调函数
@@ -86,3 +126,279 @@ uhsd_s32 HaierWriteCallback(
     res = uhsd_dev_set_write_cb(HaierWriteCallback);
     LOGW("uhsd_dev_set_write_cb res : %d", res);
 ```
+
+
+# 📅2026-04-25
+
+## C++中的容器
+### 容器的定义
+
+C++ STL（标准模板库）提供的**模板类**，用于**存储同类型数据集合**，内置了**增、删、查、遍历、排序**等现成方法。
+
+### 容器的分类
+
+1. 序列容器（按顺序存，像列表 / 数组）
+
+按**存放顺序**排列数据：
+
+- `vector`：**动态数组**（最常用，变长数组）
+- `list`：双向链表
+- `deque`：双向队列
+- `array`：固定大小数组（STL 版）
+
+2. 关联容器（按键查找，字典结构）
+
+**key-value 键值对**，自动排序 / 哈希，适合查找：
+
+- `map`：有序键值对（红黑树）
+- `unordered_map`：**哈希键值对**（查找超快）
+- `set`：唯一元素集合
+- `unordered_set`：哈希集合
+
+👉 你代码里的 `cmd_obj_api_table_.find()`
+
+**`cmd_obj_api_table_` 就是 `map/unordered_map` 这类「关联容器」**
+
+3. 容器适配器（包装出来的特殊容器）
+
+基于上面容器封装，限制功能，实现特定逻辑：
+
+- `stack`：栈（后进先出）
+- `queue`：队列（先进先出）
+- `priority_queue`：优先队列
+
+### 容器的作用
+
+- 原生数组 `int a[]` 缺点：
+    
+    - 大小固定、不能动态扩容
+    - 增删麻烦、无查找方法
+    
+- STL 容器优点：
+    - **模板化**：任意类型都能装（int、string、函数、对象）
+    - **自带方法**：`find()`、`size()`、`clear()`、`push_back()`
+    - **自动管理内存**、动态扩容
+    - 迭代器统一遍历（你刚才看的 `iter` 就是容器配套工具）
+
+## 采集-组包-上报
+
+```cpp
+std::map<int, std::function<int()>> cmd_map_table_;
+
+void DevStatus::InitWorkCmdTable() {
+    cmd_map_table_[DUST_COLLECTION]     = std::bind(&DevStatus::Cmd_StartDustCollection, this);
+    cmd_map_table_[START_SWEEP]         = std::bind(&DevStatus::Cmd_StartTotalClean, this);
+    cmd_map_table_[PAUSE_SWEEP]         = std::bind(&DevStatus::Cmd_SwitchPause, this);
+    cmd_map_table_[CONTINUE_SWEEP]      = std::bind(&DevStatus::Cmd_ContinueClean, this);
+    cmd_map_table_[RETURN_CHARGE]       = std::bind(&DevStatus::Cmd_StartCharge, this);
+    cmd_map_table_[PAUSE_RETURN_CHARGE] = std::bind(&DevStatus::Cmd_PauseCharge, this);
+    cmd_map_table_[LOCALIZE_ROBOT]      = std::bind(&DevStatus::Cmd_Seek, this);
+    cmd_map_table_[FORWARD]             = std::bind(&DevStatus::Cmd_DirectionForward, this);
+    cmd_map_table_[BACKWARD]            = std::bind(&DevStatus::Cmd_DirectionBack, this);
+    cmd_map_table_[LEFT_TURN]           = std::bind(&DevStatus::Cmd_DirectionTurnLeft, this);
+    cmd_map_table_[RIGHT_TURN]          = std::bind(&DevStatus::Cmd_DirectionTurnRight, this);
+    cmd_map_table_[MANUAL_MODE_STOP]    = std::bind(&DevStatus::Cmd_DirectionStop, this);
+    cmd_map_table_[EXPLORE_MAP]         = std::bind(&DevStatus::Cmd_ExploreMap, this);
+    cmd_map_table_[EDGE_SWEEP]          = std::bind(&DevStatus::Cmd_EdgeMode, this);
+    cmd_map_table_[RESET_FACTORY]       = std::bind(&DevStatus::Cmd_ResetFactory, this);
+    cmd_map_table_[CLEAR_MAP]           = std::bind(&DevStatus::Cmd_ResetMap, this);
+    cmd_map_table_[IDLE_MODE]           = std::bind(&DevStatus::Cmd_StopClean, this);
+}
+```
+
+- 容器内部的数据类型，可以根据需要进行更改
+
+```cpp
+int DevStatus::Init() {
+    InitWorkCmdTable();
+    // 回充中状态（包含充电中、基站工作和暂停）
+    property_switch_charge_converter_ = {
+            {EVENT_WORK_STATUS_BACK_CHARGE, true},       
+            {EVENT_WORK_STATUS_BASE_STATION, true},
+            {EVENT_WORK_STATUS_BACK_CHARGE_PAUSE, false}, 
+            {EVENT_WORK_STATUS_BASE_STATION_PAUSE, false},
+            {EVENT_WORK_STATUS_CHARGING, false},          
+            {EVENT_WORK_STATUS_FULL_CHARGING, false},
+            {EVENT_WORK_STATUS_COLLECT_DUST, false},      
+            {EVENT_WORK_STATUS_WASH_MOP, false}};
+
+    staus_thread_.reset(new std::thread(std::bind(&DevStatus::DevStatusLoop, this)));
+    EventWorkerInnerPtr worker_ptr(new EventWorker<const StdStringMsg &>(std::bind(&DevStatus::StatusForceReport, this, std::placeholders::_1)));
+    IOT_SDK->Subscriber(TOPIC_SWEEP_DEV_STATUS, std::move(worker_ptr));
+ 
+    return 0;
+}
+```
+
+
+### 堆上对象与栈上对象
+
+ 1. **`new` = 创建对象 + 返回** **对象指针**
+
+```cpp
+new std::thread(...)
+```
+- 在 ** 堆（heap）** 上创建一个 `std::thread` 对象
+- **返回值是：`std::thread*` 线程对象指针**
+- 所以必须用**指针**来接收：
+```cpp
+std::thread* t = new std::thread(...);
+```
+
+2. **不带 `new` = 创建栈上对象 + 返回** **对象实体（值）**
+
+```cpp
+std::thread t( std::bind(...) );
+```
+- 在 ** 栈（stack）** 上创建对象
+- **返回的是对象实体，不是指针**
+- 不能用指针接收
+- 生命周期到作用域结束就**自动销毁**
+
+### 线程的相关知识点
+
+```cpp
+std::thread(std::bind(&DevStatus::DevStatusLoop, this))
+```
+- `std::thread` 构造函数一执行，线程立刻启动
+
+```cpp
+staus_thread_.reset
+```
+- 使用智能指针`status_thread_`的`reset`方法，后续可以直接使用`status_thread_`管理线程指针对象
+
+等价为下面两种写法：
+```cpp
+staus_thread_ = std::make_shared<std::thread>(&DevStatus::DevStatusLoop, this);
+```
+
+```cpp
+staus_thread_ = std::make_shared<std::thread>([this] { DevStatusLoop(); });
+```
+
+
+### 智能指针与普通指针的区别
+
+> **智能指针**：
+> 
+> 是一个**包装类对象**，
+> 
+> 1. 拥有**自身方法**（`.` 调用：reset 等）
+> 2. 重载`->`/`*`，**能像普通指针一样操作目标**
+> 3. **自带自动内存回收**，安全
+
+> **普通指针**：
+> 
+> 是**纯地址**，
+> 
+> 4. 无自身方法，无 `.`
+> 5. 只能`->/*`操作目标
+> 6. 不管理内存，需要手动 delete
+
+```cpp
+std::thread* ptr = new std::thread(...);
+
+ptr->join(); // 指针只能用 ->
+```
+
+```cpp
+unique_ptr<std::thread> ptr(new std::thread(...));
+
+ptr.reset();   // 对象用 . 调用自己的方法
+ptr->join();   // -> 是“解引用”，访问内部的线程
+```
+
+
+
+
+
+# 📅2026-04-26
+
+## 智能指针管理模板类实例
+
+```cpp
+EventWorkerInnerPtr worker_ptr(new EventWorker<const StdStringMsg &>(std::bind(&DevStatus::StatusForceReport, this, std::placeholders::_1)));
+```
+
+`std::bind` 结果：是一个对象（内部保存了成员函数指针 + `this` + 占位符规则），将来被调用时才执行真正的成员函数
+
+
+
+## 成员初始化列表
+
+```cpp
+class T {
+  int a_;
+  const int b_;
+  int& c_;
+  std::function<int(int)> f_;
+
+public:
+  T(int a, int b, int& c, std::function<int(int)> f)
+    : a_(a)              // 用参数 a 初始化成员 a_
+    , b_(b)              // 用参数 b 初始化 const 成员 b_
+    , c_(c)              // 用引用 c 绑定到成员 c_
+    , f_(std::move(f))   // 用 f 的右值来初始化/移动 f_
+  {
+      // 构造函数体
+  }
+};
+```
+
+- 类名+括号，首先想到构造函数
+
+
+## 移动语义-右值引用
+
+```cpp
+template<typename MsgType>
+class EventWorker : public EventWorkerBase
+{
+ private:
+   typedef std::function<int32_t(const MsgType&)> SubFunc;
+   SubFunc subscriber_func_;
+ public:
+   EventWorker(SubFunc func) : subscriber_func_(std::move(func)) {};
+   int32_t Call(const MsgType& in_msg) {
+        return subscriber_func_(in_msg);
+   };
+};
+```
+
+- 有名字、你能对它取址（大多数情况） 的东西，通常是左值（lvalue）。
+- 临时对象、字面量、返回的非引用临时值 通常是纯右值（prvalue），常常表现为“没名字的临时结果”。
+
+
+## 回调-订阅机制
+
+```cpp
+int DevStatus::Init() {
+    InitWorkCmdTable();
+    // 回充中状态（包含充电中、基站工作和暂停）
+    property_switch_charge_converter_ = {
+            {EVENT_WORK_STATUS_BACK_CHARGE, true},       
+            {EVENT_WORK_STATUS_BASE_STATION, true},
+            {EVENT_WORK_STATUS_BACK_CHARGE_PAUSE, false}, 
+            {EVENT_WORK_STATUS_BASE_STATION_PAUSE, false},
+            {EVENT_WORK_STATUS_CHARGING, false},          
+            {EVENT_WORK_STATUS_FULL_CHARGING, false},
+            {EVENT_WORK_STATUS_COLLECT_DUST, false},      
+            {EVENT_WORK_STATUS_WASH_MOP, false}};
+
+    staus_thread_.reset(new std::thread(std::bind(&DevStatus::DevStatusLoop, this)));
+    EventWorkerInnerPtr worker_ptr(new EventWorker<const StdStringMsg &>(std::bind(&DevStatus::StatusForceReport, this, std::placeholders::_1)));
+    IOT_SDK->Subscriber(TOPIC_SWEEP_DEV_STATUS, std::move(worker_ptr));
+ 
+    return 0;
+}
+```
+
+- 传入一个"可操作的对象"作为回调函数，后续会使用这个初始化的操作句柄给这个回调函数传入参数再实际调用
+
+- 以 `TOPIC_SWEEP_DEV_STATUS` 作为事件/主题名（`const char*`）
+- 把封装好的 `EventWorker`（基类指针 `EventWorkerBase*` 形式）注册进 SDK 的订阅表里保存起来
+- 之后当该 event 有消息/事件需要处理时，SDK 会取出对应的 `EventWorker` 去调用其 `Call(...)`，从而最终触发你 `std::function` 里保存的回调
+
+# 📅2026-04-27
+
+## 线程告警上报
