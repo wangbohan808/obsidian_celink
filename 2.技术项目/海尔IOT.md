@@ -402,3 +402,152 @@ int DevStatus::Init() {
 # 📅2026-04-27
 
 ## 线程告警上报
+
+
+
+# 📅2026-04-28
+
+## 线程循环函数
+
+```cpp
+void DevStatus::DevStatusLoop() {
+    while (true) {
+        bool  b_flag = false;
+        request_signal_.PopSignal(b_flag, 300);
+        UpdateDevAllStatus(b_flag);
+    }
+}
+```
+
+**其中调用了如下函数：**
+
+```cpp
+int32_t PopSignal(T& signal_out, int32_t timeout = -1) {
+    // 查看是否有存货
+    queue_mutex_.lock();
+    if (event_queue_.size() > 0) {
+        signal_out = event_queue_.front();
+        event_queue_.pop();
+        is_set_flag_ = false;
+        queue_mutex_.unlock();
+        return 1;
+    }
+    queue_mutex_.unlock();
+
+    // 无存货，等新货
+    bool signal_status = false;
+    std::unique_lock<std::mutex> lck(cond_mutex_);
+    if (timeout == -1) {
+        // 无超时时间，永久等待
+        condition_var_.wait(lck);
+    } else {
+        if(!is_set_flag_.load()) {
+            // 等待新的消息,直到超时
+            // 注: 只有当lanbada 表达式中的返回值为true时,wait才会提前退出;
+            // 陷阱：当在进入等待状态前，通知发生，会导致通知丢失了，即条件变量仅在接收方处于等待状态时才发送通知。
+            // std::condition_variable存在两个缺陷：虚假唤醒 和 唤醒丢失
+            // 为解决以上两个问题，采取如下方案：每间隔100ms或收到信号时 查看下是否收到了信号，若收到了则退出，若没收到则继续wait_for，直到timeout
+            int32_t once_timeout     = 0;
+            int32_t once_timeout_max = 100;
+            while (timeout > 0) {
+                if (timeout > once_timeout_max) {
+                    timeout      = timeout - once_timeout_max;
+                    once_timeout = once_timeout_max;
+                } else {
+                    once_timeout = timeout;
+                    timeout      = 0;
+                }
+
+                signal_status = condition_var_.wait_for(lck, std::chrono::milliseconds(once_timeout),
+                                                        [&] { return is_set_flag_ == true; });
+                
+                if (signal_status) {
+                    if (is_set_flag_.load() || event_queue_.size() > 0) {
+                        break;
+                    }
+                }
+                
+                // debug log by zzx
+                // printf("222 PopSignal ignore wait_for. is_set_flag:%d event_queue:%d signal_status:%d once_timeout:%d\n", is_set_flag_.load(), event_queue_.size(), signal_status, once_timeout);
+            }
+
+        } else {
+            signal_status = true;
+        }
+    }
+
+    // 来货了
+    if (signal_status == true) {
+        queue_mutex_.lock();
+        if (event_queue_.size() > 0) {
+            signal_out = event_queue_.front();
+            event_queue_.pop();
+            queue_mutex_.unlock();
+            is_set_flag_ = false;
+            return 1;
+        }
+        queue_mutex_.unlock();
+    }
+
+    // debug log by zzx
+    // printf("333 PopSignal ignore wait_for. is_set_flag:%d event_queue:%d signal_status:%d timeout:%d\n", is_set_flag_.load(), event_queue_.size(), signal_status, timeout);
+    is_set_flag_ = false;
+    return -1;
+}
+```
+
+- 队列中如果有数据，就直接将数据给出去，并解锁
+
+
+- 调用函数时传入的参数，决定后续进入的分支
+- 调用 PopSignal 时，传入的 timeout 不是 -1，就会进 else
+- `-1`是永久等待，其余的是超时等待
+
+
+- `!is_set_flag_.load()` 如果是false就继续进入等待
+- 如果是`true`就进入另外一个分支
+
+- 弹出队列中储存的元素，而队列中储存的元素正是bool值
+
+
+### 锁防止数据的竞争
+
+下面三种函数，不同的线程之间可能会调用，造成这组队列的数据之间的竞争；因为访问这组队列数据的方法只有以下三种方法，因而下面三种方法加上同一把锁就好了
+
+所有会动这个队列（或在其上做强一致读写的）路径，都用的是同一把 `queue_mutex_`：
+
+|接口|对 `queue_mutex_` 的使用|
+|---|---|
+|`PushSignal`|`lock` → 可能 `pop`/`push` → `unlock`|
+|`Size`|`lock` → 读 `size()` → `unlock`|
+|`PopSignal`|开头快路径（59–67）、以及被唤醒后再取货（115–123）|
+
+因此：多个线程无论调用 Push、Pop 还是 Size，只要碰到队列，都争用同一把 `queue_mutex_`，从而避免对 `event_queue_` 的并发读写造成数据竞争。  
+这就是你说的“锁防止线程间数据竞争”在这里的具体体现：共享数据结构 = `event_queue_`，互斥量 = `queue_mutex_`
+
+
+
+### 锁的封装
+
+```cpp
+std::unique_lock<std::mutex> lck(cond_mutex_);
+```
+
+- **`std::mutex`**
+    
+    C++ 标准**互斥锁**，作用：**同一时间只允许一个线程加锁**，防止多线程同时修改数据。
+    
+- **`std::unique_lock`**
+    
+    C++ 标准**锁管理工具**（不是锁本身！是锁的**管理员 / 包装器**）。
+    
+    它负责帮你自动上锁、解锁，不用手动写 `lock()`/`unlock()`。
+    
+- **`lck`**
+    
+    你定义的**锁管理对象**名字。
+    
+- **`(cond_mutex_)`**
+    
+    把 `cond_mutex_` 这个互斥锁交给 `unique_lock` 管理
+
