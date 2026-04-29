@@ -132,6 +132,60 @@ YAML的定位就是人类最容易读写的配置文件格式，能完美映射�
 **配置为全局变量之后，后续可以直接调用**
 
 
+## 代码中的两个线程
+
+```python
+window = MainFrame.MainFrame(parent=None)
+```
+- 初始化ui对象的时候，会创建两个测试线程
+
+```python
+mythread.start_work_thread()
+mythread.start_serial_thread()
+```
+- 导入的`mythread.py`文件作为模块，直接调用模块内的函数，运行线程
+
+
+**创建管理线程的句柄,以及停止线程的标志位：**
+```python
+work_thread = None
+serial_thread = None
+# 创建一个事件对象，用于通知线程停止
+work_stop_event = threading.Event()
+serial_stop_event = threading.Event()
+```
+
+
+```python
+def thread_test_running():
+    while not work_stop_event.is_set():
+        test.test_run_process()
+    print("Worker thread stopped.")
+```
+
+- **线程让你把一段代码放到另一个并发执行的上下文中运行；运行一次还是循环运行，取决于你在线程入口函数里怎么写（有无 `while`、是否阻塞、是否可取消等）**
+
+```python
+def start_work_thread():
+    global work_thread
+    if work_thread is None or not work_thread.is_alive():
+        work_stop_event.clear()
+        work_thread = threading.Thread(target=thread_test_running)
+        work_thread.start()
+```
+- 声明一次这个变量为全局的变量，否则代码会以为后续的是局部的变量
+- 如果线程已经终止或者从未创建：清除状态位、将函数加载到线程、开始运行线程
+
+
+```python
+def stop_work_thread():
+    work_stop_event.set()
+    if work_thread is not None:
+        work_thread.join()
+```
+- 设置终止进程标志位；结束函数所在的线程检测后阻塞等待，直到所检测线程彻底结束
+
+
 
 
 
