@@ -187,5 +187,97 @@ def stop_work_thread():
 
 
 
+# 📅2026-04-29
+
+## UI的清空可以调用一个API
+
+```python
+def reset_ui(self):
+    self.up_ver_ui()
+    self.up_sn_ui()
+    self.up_notification_ui()
+    self.up_test_ui()
+```
+
+|调用|效果|
+|---|---|
+|`up_ver_ui()`|版本号标签清空|
+|`up_sn_ui()`|SN 标签清空|
+|`up_notification_ui()`|三行提示清空|
+|`up_test_ui()`|所有测试项文字与颜色/图标复位|
+
+## 键盘事件（扫码枪）处理函数
+
+```python
+# 键盘事件
+def on_key_event(self, event):
+    """
+    处理键盘事件，捕获扫码枪输入的数据
+    """
+    key_code = event.GetUnicodeKey()
+    focus = wx.Window.FindFocus()
+    if focus:
+        if focus != self:
+            self.SetFocus()  # 获取键盘输入焦点
+
+    # 如果按下的是回车键，表示扫码完成
+    if key_code == wx.WXK_NONE:  # 读取到无效的Unicode 字符
+        pass
+    elif key_code == wx.WXK_RETURN or key_code == wx.WXK_TAB:
+        self.up_sn_ui(self.barcode_data)
+        print(self.barcode_data)
+        test.barcode_msg = self.barcode_data
+        if test.barcode_q.full() is not True:
+            test.barcode_q.put(self.barcode_data)
+        if test.is_sn_up_enable():
+            ret = test.save_sn_to_list(self.barcode_data)
+            if ret:
+                test.clear_sn_up_enable()
+                if int(test.load_cfg.dev) < 100:
+                    test.send_sn_cmd()
+            self.up_notification_ui(first=test.sn_save_list[0]["head"] + test.sn_save_list[0]["sn"],
+                            second=test.sn_save_list[1]["head"] + test.sn_save_list[1]["sn"],
+                            third=test.sn_save_list[2]["head"] + test.sn_save_list[2]["sn"],
+                            color=wx.RED)
+        test.barcode_msg_update = True
+        self.barcode_data = ""  # 清空数据，准备下一次扫码
+    else:
+        # 将按键字符添加到扫码数据中
+        self.barcode_data += chr(key_code)
+        print(hex(key_code))
+
+    event.Skip()  # 继续传递事件
+```
+
+**键盘事件捕获扫码枪数据的原因：**
+1. 扫码成功后，设备会按顺序向主机发送一系列按键，等价于有人用键盘极快地打出条码里的每个字符。
+2. 末尾通常再发一个 Enter 或 Tab（可在扫码枪手册里配置后缀）
+
+
+**注册事件的回调：**
+
+```python
+self.Bind(wx.EVT_CHAR_HOOK, self.on_key_event)
+```
+
+- 当触发第一个参数的事件，会将内容传递给第二个函数并进行执行
+
+```python
+key_code = event.GetUnicodeKey()
+```
+
+- 获取时间传入的码值
+
+```python
+focus = wx.Window.FindFocus()
+if focus:
+	if focus != self:
+		self.SetFocus() 
+```
+
+- 键盘焦点（keyboard focus） 可以理解为：操作系统和 GUI 框架认定的“下一个按键应该送给谁”的那个控件
+- 谁有焦点，谁一般会收到后续的 `KEY_DOWN` / `CHAR` 等事件（除非被全局钩子、`EVT_CHAR_HOOK` 等提前拦截）
+
+- 获取当前焦点，并将焦点回调到主窗口
 
 
