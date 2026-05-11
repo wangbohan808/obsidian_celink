@@ -452,12 +452,10 @@ git push -u origin small-bag-immediate-dust-collection
 # 修改代码文件的跟踪状态
 
 ```bash
-1. 更新本地仓库的跟踪状态
-git rm -r --cached .
 git add .
+git add -u .
 git commit -m "chore: 更新.gitignore，忽略MDK-ARM输出目录"
 
-2. 更新远程仓库的跟踪状态
 git push
 ```
 
