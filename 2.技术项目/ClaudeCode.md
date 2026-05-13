@@ -19,3 +19,19 @@
 ```bash
 irm https://daheiai.com/cc.ps1 | iex
 ```
+
+**配置参考网站：**
+[cc-switch/docs/user-manual/zh/1-getting-started/1.4-quickstart.md at main · farion1231/cc-switch](https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/zh/1-getting-started/1.4-quickstart.md)
+
+[cc-switch/docs/user-manual/zh/1-getting-started/1.2-installation.md at main · farion1231/cc-switch](https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/zh/1-getting-started/1.2-installation.md)
+
+[Release CC Switch v3.14.1 · farion1231/cc-switch](https://github.com/farion1231/cc-switch/releases/tag/v3.14.1)
+
+[LongCat AI](https://longcat.chat/platform/api_keys)
+
+[LongCat API开放平台快速开始 | API 文档](https://longcat.chat/platform/docs/zh/#anthropic-api-%E6%A0%BC%E5%BC%8F)
+
+[Claude Code 配置 | API 文档](https://longcat.chat/platform/docs/zh/ClaudeCode.html#%E9%85%8D%E7%BD%AE%E6%96%B9%E6%B3%95)
+
+
+
