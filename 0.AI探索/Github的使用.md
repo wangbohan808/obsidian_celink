@@ -531,3 +531,456 @@ export HTTP_PROXY=http://127.0.0.1:7897
 export HTTPS_PROXY=http://127.0.0.1:7897
 export NO_PROXY=localhost,127.0.0.1,::1
 ```
+
+
+
+
+# 📅2026-06-12
+
+## 不同的包管理器需要各自对应的换源
+
+> 拉取包有不同的包管理器，不同的包管理器都需要设置独立的源替换
+> 同一包管理器的不同源仓库只是拉取代码的位置不同、下载的网速不同，实际储存的内容是完全相同的
+
+
+好的，按照你的要求，我整理了一份常用包管理器更换国内源的速查表。核心就是你说的：**换源只改下载地址，不影响内容，每个包管理器都要单独配置。**
+
+### 📦 常用包管理器换源速查表
+
+| 包管理器 | 适用场景 | 配置文件/命令 | 国内镜像站示例 | 配置命令 (以清华源为例) |
+| :--- | :--- | :--- | :--- | :--- |
+| **APT** | **Debian/Ubuntu** 系统软件包 | `/etc/apt/sources.list` | `mirrors.tuna.tsinghua.edu.cn` | 手动编辑配置文件替换源地址 |
+| **YUM/DNF** | **CentOS/RHEL/Fedora** 系统软件包 | `/etc/yum.repos.d/*.repo` | `mirrors.tuna.tsinghua.edu.cn` | 手动编辑或替换 `.repo` 文件中的源地址 |
+| **pip** | **Python** 软件包 | `~/.pip/pip.conf` | `pypi.tuna.tsinghua.edu.cn/simple` | `pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple` |
+| **npm** | **Node.js** 软件包 | `~/.npmrc` | `registry.npmmirror.com` | `npm config set registry https://registry.npmmirror.com` |
+| **Docker** | **容器镜像** | `/etc/docker/daemon.json` | `docker.mirrors.tuna.tsinghua.edu.cn` | 编辑 `daemon.json` 文件，添加 `registry-mirrors` 参数 |
+| **Git** | **代码仓库** | `~/.gitconfig` | `mirrors.tuna.tsinghua.edu.cn/git/...` | `git config --global url."https://新地址".insteadOf "原地址"` |
+| **Go** | **Go 语言模块** | 环境变量 `GOPROXY` | `goproxy.cn` | `go env -w GOPROXY=https://goproxy.cn,direct` |
+
+---
+
+### 🚀 核心配置方式概览
+
+为了方便查阅，这些工具的配置方式主要可以分为以下三类：
+
+**1. 直接修改配置文件**
+- **APT、YUM、Docker** 都属于这一类。你需要找到并编辑它们对应的系统配置文件（例如 `sources.list`、`*.repo`、`daemon.json`），将官方源的 URL 替换为镜像站的 URL。
+
+**2. 使用专用命令行配置**
+- **pip、npm、Go** 提供了非常便捷的命令行工具来修改配置，无需手动查找和编辑文件，一键切换，最为方便。
+
+**3. 使用 URL 替换**
+- **Git** 的配置方式比较特殊，它不是直接换掉地址，而是通过 `git config --global url."新地址".insteadOf "原地址"` 命令，告诉 Git 在访问原地址时自动“跳转”到新地址。
+
+### 💡 几点小建议
+
+1.  **常用镜像站**：国内常用的镜像站包括**清华大学 (`tuna`)、阿里云、中科大 (`ustc`)** 等。通常情况下，选择离你最近的即可。
+2.  **临时使用**：大部分包管理器都支持在安装命令后加参数临时指定一个源（如 `pip install -i 镜像地址`），这对于测试或只安装一两个包很方便。
+3.  **团队协作**：如果是团队项目或 CI/CD 环境，建议将换源的配置步骤或脚本固化下来，确保所有成员的开发环境保持一致。
+
+
+
+
+## 验证与修复代理遗留
+
+```bash
+# 查看当前有哪些Git代理配置
+git config --global --list | grep proxy
+
+# 验证环境变量已清除
+env | grep -i proxy
+```
+
+
+
+
+
+## 开机自启的一些服务
+
+
+以下是 Ubuntu 22.04 中**可能造成开机自启执行脚本或服务**的所有常见位置，涵盖系统级、用户级、桌面环境及登录会话等各个层面：
+
+---
+
+### 一、系统级（影响所有用户）
+
+#### 1. Systemd 服务
+| 路径 | 说明 |
+|------|------|
+| `/etc/systemd/system/` | 管理员自定义的 systemd 服务、定时器、挂载等单元 |
+| `/lib/systemd/system/` | 软件包安装的系统服务（不建议直接修改） |
+| `/usr/lib/systemd/system/` | 同上（部分发行版） |
+| `/etc/systemd/user/` | 管理员为所有用户定义的 user 服务（需启用 `linger`） |
+
+**启用命令**：`systemctl enable <service>`
+
+#### 2. SysV init 脚本（兼容性）
+| 路径 | 说明 |
+|------|------|
+| `/etc/init.d/` | System V 风格的启动脚本（仍被 systemd 兼容） |
+| `/etc/rc*.d/` | 运行级别目录（通常由 `update-rc.d` 管理） |
+
+#### 3. 启动时执行的脚本文件
+| 路径 | 说明 |
+|------|------|
+| `/etc/rc.local` | 传统用户自定义启动脚本（需可执行，且 systemd 有 `rc-local.service`） |
+| `/etc/rc.boot/` | 早期 Ubuntu 使用的目录（现很少用） |
+
+#### 4. 环境变量与 profile 脚本
+| 路径 | 说明 |
+|------|------|
+| `/etc/environment` | 系统全局环境变量（键值对格式，不执行脚本） |
+| `/etc/profile` | 登录 shell 执行的全局脚本 |
+| `/etc/profile.d/*.sh` | 全局 profile 片段（每个登录 shell 都会执行） |
+| `/etc/bash.bashrc` | 交互式 bash shell 的全局配置（非登录 shell 也会执行） |
+
+#### 5. PAM 环境文件
+| 路径 | 说明 |
+|------|------|
+| `/etc/security/pam_env.conf` | PAM 模块 `pam_env` 的设置文件 |
+| `/etc/default/locale` | 也被 `pam_env` 读取，常见于设置 `LANG` 等 |
+
+#### 6. 定时任务（可能开机后不久执行）
+| 路径 | 说明 |
+|------|------|
+| `/etc/crontab` | 系统级 crontab（可指定 @reboot 任务） |
+| `/etc/cron.d/*` | 系统 cron 任务目录 |
+| `/etc/cron.daily/`、`/etc/cron.hourly/` 等 | 通过 run-parts 执行，但不一定是开机执行 |
+| `/etc/anacrontab` | 用于防止频繁关机的任务（延迟执行） |
+
+#### 7. 显示管理器（Display Manager）启动脚本
+| 路径 | 说明 |
+|------|------|
+| `/etc/gdm3/Init/Default` | GDM3 初始化脚本（X11 会话启动前） |
+| `/etc/gdm3/PostLogin/Default` | 用户登录后、会话启动前执行 |
+| `/etc/gdm3/PreSession/Default` | 会话准备阶段 |
+| `/etc/lightdm/lightdm.conf` | LightDM 配置文件，可指定 `session-setup-script` |
+| `/etc/lightdm/Xsession` | LightDM 使用的 Xsession 脚本 |
+| `/etc/X11/Xsession.d/` | Xsession 执行的脚本片段（所有 X 会话都会运行） |
+| `/etc/X11/xinit/xinitrc.d/` | startx 或 xinit 时执行的脚本 |
+
+---
+
+### 二、用户级（仅当前用户）
+
+#### 1. 家目录中的配置文件（登录/交互 shell）
+| 路径 | 说明 |
+|------|------|
+| `~/.profile` | 登录 shell 执行（bash、sh、zsh 等） |
+| `~/.bash_profile` | bash 登录 shell 优先于 `~/.profile` |
+| `~/.bash_login` | 同上 |
+| `~/.bashrc` | 交互式非登录 shell 执行（例如打开终端） |
+| `~/.zshrc` | Zsh 配置文件 |
+| `~/.zshenv` | Zsh 总是读取的环境文件 |
+| `~/.config/environment.d/*.conf` | systemd user 环境变量目录（systemd 用户实例读取） |
+
+#### 2. X 会话与桌面环境自动启动
+| 路径 | 说明 |
+|------|------|
+| `~/.xsession` | X11 会话启动脚本（显示管理器会尝试执行） |
+| `~/.xsessionrc` | Debian/Ubuntu 推荐的用户级 Xsession 片段 |
+| `~/.xinitrc` | startx 或 xinit 时执行 |
+| `~/.xprofile` | 显示管理器启动会话前执行（常用于设置环境变量） |
+| `~/.config/autostart/` | **桌面环境自动启动目录**（存放 `.desktop` 文件，符合 [Desktop Entry Specification]） |
+| `~/.config/upstart/` | 废弃的 Upstart 用户作业（Ubuntu 14.04 之前） |
+
+#### 3. Systemd 用户服务
+| 路径 | 说明 |
+|------|------|
+| `~/.config/systemd/user/` | 用户级 systemd 服务（需 `systemctl --user enable`） |
+| `~/.local/share/systemd/user/` | 备用路径（某些软件安装位置） |
+
+**启用用户服务自启**：`systemctl --user enable <service>`  
+**开启用户实例开机自启**：`sudo loginctl enable-linger <username>`
+
+#### 4. 用户定时任务
+| 路径 | 说明 |
+|------|------|
+| `crontab -e` 编辑的当前用户 crontab | 可使用 `@reboot` 字段 |
+| `~/.cron*` 目录 | 一般不直接使用 |
+
+#### 5. Shell 别名与函数文件（间接自启）
+| 路径 | 说明 |
+|------|------|
+| `~/.aliases`、`~/.functions` | 常被 `~/.bashrc` 或 `~/.zshrc` source，不属于直接自启但常被引入 |
+
+---
+
+### 三、其他值得注意的位置
+
+- **snap 应用自启**：snap 包通过 `daemon` 或 `autostart` 配置，通常在 `/snap/<snap-name>/current/` 下定义，自启项由 snapd 管理。
+- **Flatpak 应用自启**：通过 `~/.config/autostart/` 间接实现，或由 Flatpak 的 `--socket=session-bus` 后台服务机制。
+- **dbus 服务激活**：`/usr/share/dbus-1/services/` 及 `~/.local/share/dbus-1/services/` 中的 `.service` 文件可让服务在收到 D-Bus 请求时启动，并非严格开机自启，但常被误解。
+- **登录 shell 的 source 链**：例如 `~/.bashrc` 可能 source `~/.bash_aliases`、`~/.local/bin/` 下的脚本等，需要递归追踪。
+
+---
+
+### 快速排查建议（针对你当前代理残留问题）
+
+因为你已经检查了常见 shell 配置和 systemd user 环境，但代理变量仍然存在，建议重点检查：
+
+1. **`/etc/profile.d/`** 中的脚本（可能不是 `.sh` 后缀，用 `grep -r proxy /etc/profile.d/` 无后缀搜索）。
+2. **`/etc/X11/Xsession.d/`** 下的文件（这些会在你的显示管理器启动 X 会话前执行，很可能设置代理）。
+3. **`~/.xprofile`**（你之前查过但可能由于权限或隐藏字符没输出，建议 `cat -A ~/.xprofile` 查看）。
+4. **桌面环境自带的自启动 GUI 应用**（如 Steam++ 或 Clash Verge 可能在 `~/.config/autostart/` 中创建了 `.desktop` 文件，虽然该目录不存在，但可能由它们自己的守护进程通过 D-Bus 导入变量）。
+5. **PAM 环境**：检查 `/etc/security/pam_env.conf` 和 `/etc/default/locale`。
+
+---
+
+如果需要**自动清除**这类持久化代理变量，可在 `~/.profile` 末尾添加：
+```bash
+# 清除已知代理环境变量
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY
+```
+这会在每次登录 shell 时生效，不影响其他环境需求。
+
+
+
+
+## 镜像与代理同时配置
+
+- **镜像和代理是“接力”关系，不是冲突关系**
+- **如果镜像里有该文件，就不会去访问原始 URL，也不会触发代理**。只有当镜像里没有（或下载失败）时，才会回退到原始 URL，此时如果你的网络需要代理才能访问原始 URL
+
+
+```bash
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+git config --global --unset http.https://github.com.proxy
+```
+- 清除git代理防止干扰
+
+```bash
+git config --global url."https://".insteadOf git://
+# 因为只配置http代理，所以首先需要转化一下
+
+# HTTP/HTTPS 代理
+export HTTP_PROXY=http://127.0.0.1:7897
+export HTTPS_PROXY=http://127.0.0.1:7897
+export http_proxy=http://127.0.0.1:7897
+export https_proxy=http://127.0.0.1:7897
+
+# SOCKS5 代理（作为备用/特殊应用）
+export ALL_PROXY=socks5://127.0.0.1:7897
+export all_proxy=socks5://127.0.0.1:7897
+
+# 直连例外
+export NO_PROXY="localhost,127.0.0.1,::1,*.tuna.tsinghua.edu.cn,*.ustc.edu.cn,*.aliyuncs.com,*.aliyun.com"
+export no_proxy="localhost,127.0.0.1,::1,*.tuna.tsinghua.edu.cn,*.ustc.edu.cn,*.aliyuncs.com,*.aliyun.com"
+```
+- 配置`http https`走代理的端口
+- 强调访问清华源以及本机的`http https`不会走代理
+
+
+
+```bash
+mkdir -p ~/.bitbake
+cat > ~/.bitbake/site.conf <<'EOF'
+# 全局镜像配置（适用于所有 Yocto 构建）
+BB_GENERAL_MIRROR = "http://mirrors.ustc.edu.cn/yocto/sources/ http://mirrors.tuna.tsinghua.edu.cn/yocto/sources/"
+EOF
+```
+- 为`bitback`创建国内镜像源
+
+
+
+- 使用clash直连是不行的，需要选择一个稳定的节点，不然无法正常访问下载
+- clash混合端口 `7897` 同时支持 HTTP/SOCKS5
+
+
+```bash
+top
+```
+- 查看CPU在各个进程的资源占用
+
+
+```bash
+#!/bin/bash
+
+# ==================== 0. 清空所有现有配置 ====================
+# 清空 Git 全局配置中的代理和 URL 重写规则
+git config --global --unset-all http.proxy 2>/dev/null
+git config --global --unset-all https.proxy 2>/dev/null
+git config --global --unset-all url."https://".insteadOf 2>/dev/null
+git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null
+git config --global --unset-all url."git@github.com:".insteadOf 2>/dev/null
+
+# 清空所有代理相关的环境变量（当前 shell）
+unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+unset ALL_PROXY all_proxy
+unset NO_PROXY no_proxy
+
+echo "✅ 已清空所有现有配置"
+
+# ==================== 1. 配置 Git 协议转换 ====================
+# 将所有 git:// 协议转换为 https://（让 Clash 可以代理）
+git config --global url."https://".insteadOf git://
+
+echo "✅ Git 协议转换配置完成：git:// → https://"
+
+# ==================== 2. 配置环境变量代理 ====================
+# HTTP/HTTPS 代理（大小写都保留）
+export HTTP_PROXY=http://127.0.0.1:7897
+export HTTPS_PROXY=http://127.0.0.1:7897
+export http_proxy=http://127.0.0.1:7897
+export https_proxy=http://127.0.0.1:7897
+
+# SOCKS5 代理（某些应用需要）
+export ALL_PROXY=socks5://127.0.0.1:7897
+export all_proxy=socks5://127.0.0.1:7897
+
+# 直连例外（对 wget/curl 有效）
+export NO_PROXY="localhost,127.0.0.1,::1,*.tuna.tsinghua.edu.cn,*.ustc.edu.cn,*.aliyuncs.com,*.aliyun.com"
+export no_proxy="localhost,127.0.0.1,::1,*.tuna.tsinghua.edu.cn,*.ustc.edu.cn,*.aliyuncs.com,*.aliyun.com"
+
+echo "✅ 环境变量代理配置完成"
+
+# ==================== 3. 配置 bitbake 国内镜像 ====================
+mkdir -p ~/.bitbake
+cat > ~/.bitbake/site.conf <<'EOF'
+# 全局镜像配置（适用于所有 Yocto 构建）
+BB_GENERAL_MIRROR = "http://mirrors.ustc.edu.cn/yocto/sources/ http://mirrors.tuna.tsinghua.edu.cn/yocto/sources/"
+
+# 可选：配置代理（如果镜像都没有才走代理）
+# BB_FETCH_PROXY = "http://127.0.0.1:7897"
+EOF
+
+echo "✅ bitbake 镜像配置完成"
+
+# ==================== 4. 验证配置 ====================
+echo ""
+echo "==================== 验证结果 ===================="
+echo ""
+
+echo "=== 1. Git 配置 ==="
+git config --global --list | grep -E "url|proxy" || echo "无代理配置（正确）"
+echo ""
+
+echo "=== 2. 代理环境变量（当前 shell）==="
+env | grep -i proxy | grep -v "unset" || echo "❌ 代理未设置"
+echo ""
+
+echo "=== 3. bitbake 镜像配置 ==="
+cat ~/.bitbake/site.conf
+echo ""
+
+echo "=== 4. Clash 连接测试 ==="
+if curl -s -o /dev/null -w "%{http_code}" --proxy http://127.0.0.1:7897 https://www.google.com 2>/dev/null | grep -q "200"; then
+    echo "✅ Clash 代理连接正常"
+else
+    echo "⚠️  Clash 代理连接失败，请确认 Clash 是否运行在端口 7897"
+fi
+echo ""
+
+echo "=== 5. Git 协议转换测试 ==="
+echo "测试命令: git clone git://github.com/git/git.git"
+echo "实际会转换为: https://github.com/git/git.git"
+echo ""
+
+echo "==================== 配置完成 ===================="
+echo "💡 当前 shell 已配置代理，退出后失效"
+echo "   如需重新配置，请重新执行此脚本"
+```
+
+
+
+```bash
+wbh808@wbh-robot:~/yocto-rockchip-sdk/build/conf$ cat local.conf
+#include include/common.conf
+#include include/demo.conf
+
+MACHINE = "rockchip-rk3588s-rock-5c"
+BBMASK += ".*/recipes-browser/chromium"
+wbh808@wbh-robot:~/yocto-rockchip-sdk/build/conf$ 
+```
+- 以上对于这一个文件的操作实际产生的影响以及含义不是很清楚
+
+```bash
+# 如果你确认 include/common.conf 和 include/demo.conf 不存在或不需要，可以保持注释
+# 如果它们存在且包含必要配置（如镜像、分发版），请取消注释
+include include/common.conf
+include include/demo.conf
+
+# 指定目标机器（Rockchip RK3588S 基于 Radxa ROCK 5C）
+MACHINE = "rockchip-rk3588s-rock-5c"
+
+# 屏蔽 Chromium 浏览器相关的所有 recipe（避免下载数 GB 源码导致构建失败）
+#BBMASK += ".*/recipes-browser/chromium"
+
+# ========== 以下为新增的推荐配置（解决网络问题） ==========
+# 使用国内镜像加速源码下载（以清华源为例，可根据实际选择）
+PREMIRRORS_prepend = "\
+    git://.*/.* http://mirrors.tuna.tsinghua.edu.cn/git/yocto/ \n \
+    https://.*/.* http://mirrors.tuna.tsinghua.edu.cn/yoctoproject/ \n \
+    ftp://.*/.* http://mirrors.tuna.tsinghua.edu.cn/yoctoproject/ \n \
+"
+
+# 启用自己的镜像机制
+INHERIT += "own-mirrors"
+
+# 设置镜像主 URL
+SOURCE_MIRROR_URL = "http://mirrors.tuna.tsinghua.edu/yoctoproject/"
+
+# 提高 wget 重试次数和超时时间（应对网络不稳定）
+FETCHCMD_wget = "/usr/bin/env wget -t 10 -T 180"
+
+# 限制并发任务数，避免过多网络连接同时失败（可选）
+#BB_NUMBER_THREADS = "4"
+#PARALLEL_MAKE = "-j 4"
+```
+- 使用通配替换首先使用国内镜像源
+
+- 配置文件路径如下：
+```bash
+wbh808@wbh-robot:~/yocto-rockchip-sdk/build/conf$ cat local.conf
+#include include/common.conf
+#include include/demo.conf
+
+MACHINE = "rockchip-rk3588s-rock-5c"
+BBMASK += ".*/recipes-browser/chromium"
+```
+
+
+
+
+## 代理与实际软件源原理
+
+
+```text
+[Yocto构建] → 决定“请求哪个URL” (镜像地址 vs 默认地址)
+     ↓
+[系统网络] → 决定“该URL的流量走哪条出口” (代理 vs 直连)
+     ↓
+[最终速度] = URL响应速度 + 出口路径质量
+```
+
+
+### 🔗 三者如何协同？一个具体例子说明
+
+假设你在 Yocto 中编译一个需要从 `github.com` 下载源码的包：
+
+|配置情况|Yocto 请求的 URL|Clash 规则对 `github.com` 的策略|实际出口|最终速度|
+|---|---|---|---|---|
+|无镜像 + 无代理|`https://github.com/...`|无代理（直连）|本地直连 github|慢（跨国）|
+|无镜像 + 开启代理（规则模式）|`https://github.com/...`|匹配到 `GEOIP,CN` 不包含，走 `PROXY`|代理服务器|取决于代理质量|
+|**配置清华源镜像** + 无代理|`https://mirrors.tuna.tsinghua.edu.cn/...`|无代理（直连）|本地直连清华|**快** ✅|
+|**配置清华源镜像** + 开启代理（规则模式）|`https://mirrors.tuna.tsinghua.edu.cn/...`|匹配到 `DOMAIN-SUFFIX,tuna.tsinghua.edu.cn,DIRECT`|本地直连清华|**快** ✅ (且未消耗代理流量)|
+|**配置清华源镜像** + 开启代理（全局模式）|`https://mirrors.tuna.tsinghua.edu.cn/...`|无例外，全部 `PROXY`|代理访问清华|慢（绕路） ❌|
+
+
+
+
+
+
+## 较优代理+换源方案
+
+- 常用的包管理工具换为清华源
+- 特殊的构建工具内部方案（其实也是更换包管理工具的软件源）换为清华源
+- 将使用ssh协议的内容更换为使用https协议
+
+- 接着就可以使用clash配置全局代理
+- 并且设置清华源相关的http协议除外
+
+
+
+
