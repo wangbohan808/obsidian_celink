@@ -535,6 +535,7 @@ export NO_PROXY=localhost,127.0.0.1,::1
 
 
 
+
 # 📅2026-06-12
 
 ## 不同的包管理器需要各自对应的换源
@@ -983,4 +984,118 @@ BBMASK += ".*/recipes-browser/chromium"
 
 
 
+## linux网络配置相关拓展
+
+```bash
+export NO_PROXY=localhost,127.0.0.1,::1
+```
+- **`127.0.0.1`**：IPv4 回环地址，本机通信
+- **`::1`**：IPv6 回环地址，是 `127.0.0.1` 的 IPv6 版本
+- 强调本机程序访问本机的各个端口不走代理
+
+```bash
+# 没有 no_proxy 时的悲剧
+curl http://localhost:3000/api
+# → 流量被转发到 Clash:7897
+# → Clash 再去外网找 localhost（不存在）
+# → 连接失败 ❌
+
+# 有 no_proxy 时
+curl http://localhost:3000/api  
+# → 检查发现 localhost 在 no_proxy 列表中
+# → 直接连接本机 3000 端口
+# → 成功访问本地服务 ✅
+```
+
+
+```bash
+# ~/.bashrc 示例内容
+export http_proxy=http://127.0.0.1:7897
+export https_proxy=http://127.0.0.1:7897
+export PATH=$PATH:/home/user/my_scripts
+alias ll='ls -al'
+
+# 当你打开新终端时，bash 自动执行这个文件中的命令
+# 所以这些环境变量和别名就自动生效了
+```
+**典型程序对环境变量的支持：**
+- **curl/wget**：读取 `http_proxy`、`https_proxy`、`no_proxy`
+- **git**：读取 `http.proxy` 配置，但也支持 `http_proxy` 环境变量
+- **pip/apt**：也支持这些标准变量
+- **容器工具**：docker pull 支持 `HTTP_PROXY` 变量
+
+
+```bash
+# 场景演示
+# 1. .bashrc 中有：export http_proxy=http://123.456.7.8:9999
+
+# 2. 打开终端，变量自动加载
+echo $http_proxy
+# 输出：http://123.456.7.8:9999
+
+# 3. 执行 unset
+unset http_proxy
+echo $http_proxy
+# 输出：（空）
+
+# 4. 但 .bashrc 文件内容没变
+cat ~/.bashrc | grep http_proxy
+# 输出：export http_proxy=http://123.456.7.8:9999 （仍然存在）
+
+# 5. 开新终端，又会自动加载旧代理（第2步的状态）
+```
+- `unset`只影响当前`shell`配置
+
+
+
+```bash
+# 创建函数或别名
+alias proxy='export http_proxy=http://127.0.0.1:7897; export https_proxy=http://127.0.0.1:7897'
+alias unproxy='unset http_proxy https_proxy'
+
+# 使用时
+proxy
+curl google.com  # 走代理
+unproxy
+curl localhost    # 直连
+```
+- 使用代理：原本`https`访问对应服务器的443端口
+- 走代理之后：向`127.0.0.1:7897`传请求，从这个端口接收数据
+- 当宿主机传请求后，`127.0.0.1:7897`的代理软件会选择更优线路作为传话筒
+
+
+```bash
+# 查看当前代理
+echo $http_proxy $https_proxy
+
+# 测试代理是否生效
+curl -I https://www.google.com 2>&1 | grep -i proxy
+# 或直接看输出内容
+
+# 测试 no_proxy
+curl -v http://localhost:8080 2>&1 | grep -i "no proxy"
+```
+- `curl -I`访问网页，只获取响应头，从中筛选`grep`需要的内容
+
+
+```bash
+# 执行前，查看全局配置
+git config --global --list | grep proxy
+http.proxy=http://127.0.0.1:7890  # 旧的代理配置
+https.proxy=http://127.0.0.1:7890
+
+# 执行删除命令
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+
+# 执行后，再次查看
+git config --global --list | grep proxy
+（没有输出，已被删除）
+```
+- git具有单独的环境变量
+
+环境变量 http_proxy  <  Git 配置 http.proxy  <  命令行参数
+（最低优先级）        （中等优先级）          （最高优先级）
+
+一般情况下，越是精确局部的配置，优先级越高
 
